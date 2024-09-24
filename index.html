@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Air Defense</title>
+    <style>
+        html {
+            height: 100%;
+        }
+
+        body {
+            overflow: hidden;
+            background: rgb(2, 0, 36);
+            background: linear-gradient(180deg, rgb(18, 1, 1) 0%, rgb(0, 0, 76) 100%);
+            font-family: Arial, sans-serif;
+        }
+
+        .particle {
+            position: absolute;
+            font-size: 20px;
+            user-select: none;
+            color: dimgrey;
+        }
+
+        .turret {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            align-content: center;
+            font-size: 20px;
+            color: yellow;
+            user-select: none;
+        }
+
+        .laser {
+            position: absolute;
+            font-size: 20px;
+            font-weight: bold;
+            color: red;
+            user-select: none;
+        }
+
+        .score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            color: white;
+        }
+
+        .explosion {
+            animation: fadeOut 1500ms;
+            font-size: 40px;
+            user-select: none;
+            color: #fffbd6;
+            position: absolute;
+        }
+
+        @keyframes fadeOut {
+            0% {
+                opacity: 1;
+                color: rgb(255, 255, 0)
+            }
+            100% {
+                opacity: 0;
+                color: rgb(255, 0, 0)
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="score"></div>
+<div class="turret">A</div>
+<script>
+    const numParticles = 100; // Configurable number of particles
+    const particles = [];
+    const lasers = [];
+    const RAD = (Math.PI / 180);
+    let currentParticles = 0;
+    let destroyedParticles = 0;
+    let missedParticles = 0;
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    const SHOOTING_ANGLE = 120;
+
+    document.addEventListener('mousemove', (event) => {
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+    });
+
+    updateScore();
+
+    class Particle {
+        constructor() {
+            this.reset();
+            this.element = document.createElement('div');
+            this.element.className = 'particle';
+            this.element.textContent = 'X';
+            document.body.appendChild(this.element);
+        }
+
+        reset() {
+            this.x = Math.random() * window.innerWidth;
+            this.y = -20;
+            this.speed = 1 + Math.random() * 1.5;
+            this.angle = (Math.random() - 0.5) * 0.1;
+            this.rotation = (Math.random() - 0.5) * 3;
+            this.phi = 0;
+        }
+
+        update() {
+            this.y += this.speed;
+            this.x += this.angle * this.speed;
+            this.phi += this.rotation;
+            if (this.y > window.innerHeight) {
+                this.reset();
+                missedParticles++;
+                updateScore();
+            }
+            this.element.style.transform = `translate(${this.x}px, ${this.y}px) rotate(${this.phi}deg)`;
+        }
+    }
+
+    class Laser {
+        constructor() {
+            this.x = window.innerWidth / 2;
+            this.y = window.innerHeight - 40;
+            this.speed = 8;
+            this.angle = ((Math.random() * SHOOTING_ANGLE - SHOOTING_ANGLE / 2) + 90) * RAD;
+            // this.angle = Math.atan2(this.y - mouseY, mouseX - this.x);
+            this.displayAngle = 90 * RAD - this.angle;
+            this.element = document.createElement('div');
+            this.element.className = 'laser';
+            this.element.textContent = 'I';
+            document.body.appendChild(this.element);
+        }
+
+        update() {
+            this.x += this.speed * Math.cos(this.angle);
+            this.y -= this.speed * Math.sin(this.angle);
+            if (this.y < 0 || this.x < 0 || this.x > window.innerWidth) {
+                this.element.remove();
+                return false;
+            }
+            this.element.style.transform = `translate(${this.x}px, ${this.y}px) rotate(${this.displayAngle}rad)`;
+            this.checkCollision();
+            return true;
+        }
+
+        checkCollision() {
+            particles.forEach((particle, index) => {
+                const dx = this.x - particle.x;
+                const dy = this.y - particle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 10) { // Adjust the collision distance as needed
+                    new Explosion(particle.x, particle.y);
+                    particle.reset();
+                    destroyedParticles++;
+                    updateScore();
+                }
+            });
+        }
+    }
+
+    class Explosion {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.element = document.createElement('div');
+            this.element.className = 'explosion';
+            this.element.textContent = '*';
+            this.element.style.transform = `translate(${this.x}px, ${this.y}px)`;
+            document.body.appendChild(this.element);
+            setTimeout(() => this.element.remove(), 2000);
+        }
+    }
+
+    function initParticles() {
+        const interval = setInterval(() => {
+            if (currentParticles < numParticles) {
+                particles.push(new Particle());
+                currentParticles++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 50); // Adjust the interval time as needed
+    }
+
+    function firelaser() {
+        const laser = new Laser();
+        lasers.push(laser);
+    }
+
+    function animateParticles() {
+        particles.forEach(particle => particle.update());
+        lasers.forEach((laser, index) => {
+            if (!laser.update()) {
+                lasers.splice(index, 1);
+            }
+        });
+        requestAnimationFrame(animateParticles);
+    }
+
+    function updateScore() {
+        document.querySelector('.score').textContent = `Destroyed: ${destroyedParticles} | Missed: ${missedParticles} | Balance: ${destroyedParticles - missedParticles}`;
+    }
+
+    window.onload = () => {
+        initParticles();
+        animateParticles();
+        setInterval(firelaser, 70);
+    };
+</script>
+</body>
+</html>
